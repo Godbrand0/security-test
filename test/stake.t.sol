@@ -171,4 +171,51 @@ function test_can_claim_rewards() public {
     assertEq(earnedAfter, 0, "Rewards should reset after claiming");
 }
 
+function test_cannot_claim_zero_rewards() public {
+    // 1. Bob stakes but no rewards have been funded or accrued
+    test_can_stake_successfully();
+
+    // Ensure earned rewards are 0
+    uint256 earned = staking.earned(bob);
+    assertEq(earned, 0, "Bob should have 0 rewards before claiming");
+
+    // 2. Bob tries to claim rewards
+    vm.startPrank(bob);
+    staking.getReward(); // should not transfer anything
+    vm.stopPrank();
+
+    // 3. Verify Bob did not receive any tokens
+    uint256 bobBalance = rewardToken.balanceOf(bob);
+    assertEq(bobBalance, 0, "Bob should not receive tokens when claiming 0 rewards");
+}
+function test_reward_per_token_not_0() public {
+    // 1. Bob stakes tokens
+    test_can_stake_successfully();
+
+    // 2. Fund reward distributor (owner) with reward tokens
+    deal(address(rewardToken), owner, 200 ether);
+
+    // 3. Owner transfers rewards to staking contract and sets duration
+    vm.startPrank(owner);
+    rewardToken.transfer(address(staking), 100 ether);
+    staking.setRewardsDuration(1 weeks);
+
+    // 4. Notify staking contract of reward amount
+    staking.notifyRewardAmount(100 ether);
+    vm.stopPrank();
+
+    // 5. Advance time so rewards accumulate
+    vm.warp(block.timestamp + 5 days);
+
+    // 6. Fetch reward rate and reward per token stored
+    uint256 rewardRate   = staking.rewardRate();
+    uint256 rewardStored = staking.rewardPerTokenStored();
+    uint256 rewardPerToken = staking.rewardPerToken();
+
+    // 7. Assert values make sense
+    assertGt(rewardRate, 0, "reward rate should be greater than 0");
+    // assertGt(rewardStored, 0, "rewardPerTokenStored should be greater than 0");
+   assertGt(rewardPerToken, 0, "rewardPerToken should be greater than 0");
+}
+
 }
