@@ -217,5 +217,80 @@ function test_reward_per_token_not_0() public {
     // assertGt(rewardStored, 0, "rewardPerTokenStored should be greater than 0");
    assertGt(rewardPerToken, 0, "rewardPerToken should be greater than 0");
 }
+function test_setRewardsDuration_revertIfNotOwner() public {
+    // Try calling as Bob
+    vm.startPrank(bob);
+    vm.expectRevert("not authorized");
+    staking.setRewardsDuration(2 weeks);
+    vm.stopPrank();
+}
+
+function test_setRewardsDuration_success() public {
+    // Fund the staking contract so it has rewards
+    deal(address(rewardToken), owner, 100 ether);
+
+    vm.startPrank(owner);
+
+    // First set the reward duration (avoid div by zero)
+    staking.setRewardsDuration(1 weeks);
+
+    // Transfer rewards and notify
+    rewardToken.transfer(address(staking), 100 ether);
+    staking.notifyRewardAmount(100 ether);
+    vm.stopPrank();
+
+    // Fast-forward past the reward period
+    vm.warp(block.timestamp + 8 days);
+
+    // Owner sets new duration successfully
+    vm.startPrank(owner);
+    staking.setRewardsDuration(2 weeks);
+    vm.stopPrank();
+
+    assertEq(staking.duration(), 2 weeks, "duration not updated correctly");
+}
+
+
+function test_notifyRewardAmount_topUpRewards() public {
+    deal(address(rewardToken), owner, 200 ether);
+
+    vm.startPrank(owner);
+    staking.setRewardsDuration(1 weeks);
+    rewardToken.transfer(address(staking), 200 ether);
+
+    // First notify
+    staking.notifyRewardAmount(100 ether);
+    uint256 rateBefore = staking.rewardRate();
+
+    // Halfway through
+    vm.warp(block.timestamp + 3 days);
+
+    // Top up again
+    staking.notifyRewardAmount(100 ether);
+
+    assertGt(staking.rewardRate(), rateBefore, "rewardRate not increased after top-up");
+    vm.stopPrank();
+}
+
+
+
+function test_setRewardsDuration_revertIfRewardsActive() public {
+    deal(address(rewardToken), owner, 100 ether);
+
+    vm.startPrank(owner);
+    staking.setRewardsDuration(1 weeks);
+    rewardToken.transfer(address(staking), 100 ether);
+    staking.notifyRewardAmount(100 ether);
+
+    // Warp halfway into reward period
+    vm.warp(block.timestamp + 3 days);
+
+    // Should revert since finishAt > block.timestamp
+    vm.expectRevert("reward duration not finished");
+    staking.setRewardsDuration(2 weeks);
+    vm.stopPrank();
+}
+
+
 
 }
