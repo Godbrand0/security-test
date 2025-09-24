@@ -291,6 +291,30 @@ function test_setRewardsDuration_revertIfRewardsActive() public {
     vm.stopPrank();
 }
 
+function test_lastTimeRewardApplicable() public {
+    // 1. Fund owner with reward tokens
+    deal(address(rewardToken), owner, 100 ether);
+
+    vm.startPrank(owner);
+    staking.setRewardsDuration(1 weeks);
+
+    // 2. Transfer rewards into staking contract
+    rewardToken.transfer(address(staking), 100 ether);
+
+    // 3. Notify reward amount
+    staking.notifyRewardAmount(100 ether);
+    vm.stopPrank();
+
+    // 4. Before finishAt → should return block.timestamp
+    uint256 timeBeforeFinish = staking.lastTimeRewardApplicable();
+    assertEq(timeBeforeFinish, block.timestamp, "Should equal current time before finishAt");
+
+    // 5. After finishAt → should return finishAt
+    vm.warp(block.timestamp + 2 weeks);
+    uint256 timeAfterFinish = staking.lastTimeRewardApplicable();
+    assertEq(timeAfterFinish, staking.finishAt(), "Should equal finishAt after reward period ends");
+}
+
 
 
 }
